@@ -10,6 +10,7 @@
 
 #include "common.h"
 #include "package.h"
+#include "socket_utils.h"
 
 using namespace std;
 
@@ -17,98 +18,6 @@ bool isGet;
 char* serv_addr_s;
 uint16_t serv_port;
 char* filename;
-struct sockaddr_in make_addr(char* addr, int port) {
-  struct sockaddr_in serv_addr;
-  bzero((char*)&serv_addr, sizeof(serv_addr));
-  serv_addr.sin_family = AF_INET;
-  serv_addr.sin_addr.s_addr = inet_addr(addr);
-  if (INADDR_NONE == serv_addr.sin_addr.s_addr) {
-    puts("invaild address!");
-    exit(1);
-  }
-  serv_addr.sin_port = htons(port);
-  return serv_addr;
-}
-int host_UDPsocket(int port) {
-  int sockfd;
-  struct sockaddr_in host_addr;
-  if ((sockfd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
-    puts("create local socket failed");
-    exit(1);
-  }
-  bzero((char*)&host_addr, sizeof(host_addr));
-  host_addr.sin_family = AF_INET;
-  host_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  host_addr.sin_port = htons(port);
-
-  if (bind(sockfd, (struct sockaddr*)&host_addr, sizeof(host_addr)) < 0) {
-    puts("bind local socket failed");
-    return -1;
-  }
-  return sockfd;
-}
-
-template <typename Derived>
-Status send_package(int sockfd, struct sockaddr* sockaddr,
-                    PackageBase<Derived>& package) {
-  uint rand100 = rand() % 100u;
-  if (rand100 < k_drop_percent) return Status::Ok;
-  char* buffer;
-  buffer = (char*)malloc(package.size());
-  package.serialize(buffer);
-  if (-1 == sendto(sockfd, buffer, package.size(), 0,
-                   (struct sockaddr*)sockaddr, sizeof(struct sockaddr)))
-    return Status::SendErr;
-  return Status::Ok;
-}
-void recv_timeout_handler(int sig) { return; }
-Err last_err_package;
-template <typename Derived>
-Status recv_package(int sockfd, struct sockaddr* sockaddr,
-                    PackageBase<Derived>& package) {
-  static char buffer[k_buffer_size];
-  size_t len;
-  size_t addr_len = sizeof(sockaddr);
-
-  struct sigaction timeout_action;
-
-  timeout_action.sa_handler = recv_timeout_handler;
-  timeout_action.sa_flags = 0;
-  sigaction(SIGALRM, &timeout_action, 0);
-  struct itimerval tick;
-  tick.it_value.tv_sec = k_timeout_us / 1000000;
-  tick.it_value.tv_usec = k_timeout_us % 1000000;
-  tick.it_interval.tv_sec = 0;
-  tick.it_interval.tv_usec = 0;
-
-  struct itimerval zero_it;
-  memset(&zero_it, 0, sizeof(zero_it));
-
-  setitimer(ITIMER_REAL, &tick, NULL);
-  errno = 0;
-
-  while (true) {
-    len = recvfrom(sockfd, buffer, k_buffer_size, 0, sockaddr,
-                   (socklen_t*)&addr_len);
-    if (errno != 0) {
-      if (errno == EINTR) {
-        //("timeout");
-      }
-      setitimer(ITIMER_REAL, &zero_it, NULL);
-      return Status::Timeout;
-    }
-    Status status = package.deserialize(buffer, len);
-    if (Status::Ok == status) {
-      return Status::Ok;
-    } else if (Status::ServerErr == status) {
-      last_err_package.deserialize(buffer, len);
-      return Status::ServerErr;
-    } else if (Status::PackageDeserializeErr == status) {
-      continue;
-    }
-  }
-  return Status::UnknownErr;
-}
 
 void get_file() {
   uint sum_size = 0;
