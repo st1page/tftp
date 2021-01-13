@@ -18,9 +18,9 @@ bool isGet;
 char* serv_addr_s;
 uint16_t serv_port;
 char* filename;
+uint sum_size = 0;
 
 void get_file() {
-  uint sum_size = 0;
   int sockfd;
   struct sockaddr_in serv_addr;
   FILE* file;
@@ -62,7 +62,7 @@ void get_file() {
       fprintf(stderr, "%d block get\n", block_num);
       timeout_cnt = 0;
       if (data_package.block_num == block_num) {
-        sum_size+=data_package.data.size();
+        sum_size += data_package.data.size();
         if (data_package.data.size() == 0 ||
             fwrite(data_package.data.c_str(), 1, data_package.data.size(),
                    file)) {
@@ -79,7 +79,7 @@ void get_file() {
         continue;
       }
     } else if (Status::Timeout == status) {
-      fprintf(stderr, "%d block timeout\n", block_num);
+      fprintf(stderr, "%d block timeout\n", block_num - 1);
       timeout_cnt++;
       if (timeout_cnt >= k_timeout_ms) {
         printf("There have been %d times timeout\n", timeout_cnt);
@@ -108,7 +108,7 @@ void get_file() {
   }
 OK_LABAL:
   printf("get file: %s Success!\n", filename);
-  printf("%d Bytes!\n",sum_size);
+  printf("%d Bytes!\n", sum_size);
   fclose(file);
   return;
 ERROR_LABAL:
@@ -118,7 +118,6 @@ ERROR_LABAL:
   return;
 }
 void put_file() {
-  uint sum_size = 0;
   int sockfd;
   struct sockaddr_in serv_addr;
   FILE* file;
@@ -172,7 +171,7 @@ void put_file() {
         continue;
       }
     } else if (Status::Timeout == status) {
-      fprintf(stderr, "%d block timeout\n", block_num);
+      fprintf(stderr, "%d block timeout\n", block_num - 1);
       timeout_cnt++;
       if (timeout_cnt >= k_timeout_ms) {
         printf("There have been %d times timeout\n", timeout_cnt);
@@ -201,7 +200,7 @@ void put_file() {
   }
 OK_LABAL:
   printf("put file: %s Success!\n", filename);
-  printf("%d Bytes!\n",sum_size);
+  printf("%d Bytes!\n", sum_size);
   fclose(file);
   return;
 ERROR_LABAL:
@@ -230,9 +229,16 @@ int main(int argc, char* argv[]) {
   serv_addr_s = argv[2];
   serv_port = (uint16_t)atoi(argv[3]);
   filename = argv[4];
+  struct timeval start, end;
+  gettimeofday(&start, NULL);
   if (isGet)
     get_file();
   else
     put_file();
+  gettimeofday(&end, NULL);
+  long timeuse =
+      1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
+  printf("cost time=%fs\n", timeuse / 1000000.0);
+  printf("bandwidth: %fKB/s\n", (double)sum_size / timeuse * 1000);
   return 0;
 }

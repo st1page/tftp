@@ -1,5 +1,5 @@
 #pragma once
-const uint k_drop_percent = 7;
+const uint k_drop_percent = 1;
 const int k_timeout_ms = 1000;
 const int k_timeout_us = k_timeout_ms*1000;
 const int k_max_contimeouts = 10;
