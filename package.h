@@ -141,8 +141,6 @@ struct Err : public PackageBase<Err> {
 template <typename Derived>
 Status send_package(int sockfd, struct sockaddr* sockaddr,
                     PackageBase<Derived>& package) {
-  uint rand100 = rand() % 100u;
-  if (rand100 < k_drop_percent) return Status::Ok;
   char* buffer;
   buffer = (char*)malloc(package.size());
   package.serialize(buffer);
@@ -156,6 +154,9 @@ Err last_err_package;
 template <typename Derived>
 Status recv_package(int sockfd, struct sockaddr* sockaddr,
                     PackageBase<Derived>& package) {
+  uint rand100 = rand() % 100u;
+  if (rand100 < k_drop_percent) return Status::Timeout;
+
   static char buffer[k_buffer_size];
   size_t len;
   size_t addr_len = sizeof(sockaddr);
